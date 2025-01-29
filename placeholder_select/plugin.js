@@ -11,7 +11,7 @@
  */
 
 CKEDITOR.plugins.add("placeholder_select", {
-  lang: ["en", "de", "el"],
+  lang: ["en", "de", "el", "ca", "es"],
   requires: ["richcombo"],
   init: function (editor) {
     //  array of placeholders to choose from that'll be inserted into the editor
