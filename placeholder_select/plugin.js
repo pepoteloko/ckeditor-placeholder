@@ -78,8 +78,8 @@ CKEDITOR.plugins.add("placeholder_select", {
                     text: function( text, node ) {
                         var dtd = node.parent && CKEDITOR.dtd[ node.parent.name ];
 
-                        // Skip the case when placeholder is in elements like <title> or <textarea>
-                        // but upcast placeholder in custom elements (no DTD).
+                        // Skip the case when the placeholder is in elements like <title> or <textarea>
+                        // but upcast the placeholder in custom elements (no DTD).
                         if ( dtd && !dtd.span )
                             return;
 
@@ -94,8 +94,7 @@ CKEDITOR.plugins.add("placeholder_select", {
                             innerElement.add( new CKEDITOR.htmlParser.text( match ) );
                             widgetWrapper = editor.widgets.wrapElement( innerElement, 'placeholder' );
 
-                            // Return outerhtml of widget wrapper so it will be placed
-                            // as replacement.
+                            // Return outerhtml of the widget wrapper so it will be placed as a replacement.
                             return widgetWrapper.getOuterHtml();
                         } );
                     }
