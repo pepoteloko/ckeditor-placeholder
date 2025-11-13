@@ -11,7 +11,7 @@
  * Modified version to use in SmartPanel by Josep Rius
  */
 CKEDITOR.plugins.add("placeholder_select", {
-    lang: ["en", "de", "el", "ca", "es"],
+    lang: ["en", "de", "el", "ca", "es", "pt"],
     requires: ["richcombo"],
     init: function (editor) {
         //  array of placeholders to choose from that'll be inserted into the editor
