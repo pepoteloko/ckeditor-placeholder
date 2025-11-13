@@ -1,76 +1,133 @@
 /**
- * A plugin to enable placeholder tokens to be inserted into the CKEditor message. Use on its own or with teh placeholder plugin.
+ * A plugin to enable placeholder tokens to be inserted into the CKEditor message. Use on its own or with the placeholder plugin.
  * The default format is compatible with the placeholders syntex
  *
- * @version 0.1
+ * @version 0.2
  * @Author Troy Lutton
+ * @Author Josep Rius
  * @license MIT
  *
  * This is a pure modification for the placeholders plugin. All credit goes to Stuart Sillitoe for creating the original (stuartsillitoe.co.uk)
- *
+ * Modified version to use in SmartPanel by Josep Rius
  */
-
 CKEDITOR.plugins.add("placeholder_select", {
-  lang: ["en", "de", "el", "ca", "es"],
-  requires: ["richcombo"],
-  init: function (editor) {
-    //  array of placeholders to choose from that'll be inserted into the editor
-    var placeholders = [];
+    lang: ["en", "de", "el", "ca", "es"],
+    requires: ["richcombo"],
+    init: function (editor) {
+        //  array of placeholders to choose from that'll be inserted into the editor
+        var placeholders = {};
 
-    // init the default config - empty placeholders
-    var defaultConfig = {
-      format: "[[%placeholder%]]",
-      placeholders: [],
-    };
+        // init the default config - empty placeholders
+        var defaultConfig = {
+            format: "[[%placeholder%]]", // format placeholder a inserir
+            placeholders: [],
+        };
 
-    // merge defaults with the passed in items
-    var config = CKEDITOR.tools.extend(
-      defaultConfig,
-      editor.config.placeholder_select || {},
-      true
-    );
+        // merge defaults with the passed in items
+        var config = CKEDITOR.tools.extend(
+            defaultConfig,
+            editor.config.placeholder_select || {},
+            true
+        );
 
-    // run through an create the set of items to use
-    for (var i = 0; i < config.placeholders.length; i++) {
-      // get our potentially custom placeholder format
-      var placeholder = config.format.replace(
-        "%placeholder%",
-        config.placeholders[i]
-      );
-      placeholders.push([
-        placeholder,
-        config.placeholders[i],
-        config.placeholders[i],
-      ]);
-    }
+        // Crea el conjunto de placeholders
+        for (var i = 0; i < config.placeholders.length; i++) {
+            var placeholder = config.placeholders[i];
 
-    // add the menu to the editor
-    editor.ui.addRichCombo("placeholder_select", {
-      label: editor.lang.placeholder_select.dropdown_label,
-      title: editor.lang.placeholder_select.dropdown_title,
-      voiceLabel: editor.lang.placeholder_select.dropdown_voiceLabel,
-      className: "cke_format",
-      multiSelect: false,
-      panel: {
-        css: [CKEDITOR.skin.getPath("editor")].concat(
-          editor.config.contentsCss
-        ),
-        voiceLabel: editor.lang.placeholder_select.panelVoiceLabel,
-      },
+            // Define el formato del placeholder a insertar
+            var formattedPlaceholder = config.format.replace("%placeholder%", placeholder.value);
 
-      init: function () {
-        this.startGroup(this.label);
-        for (var i in placeholders) {
-          this.add(placeholders[i][0], placeholders[i][1], placeholders[i][2]);
+            // Si no existe el grupo lo creamos
+            if (!placeholders[placeholder.group]) {
+                placeholders[placeholder.group] = [];
+            }
+
+            // Añadir el placeholder al grupo correspondiente
+            placeholders[placeholder.group].push([formattedPlaceholder, placeholder.name, placeholder.value]);
         }
-      },
 
-      onClick: function (value) {
-        editor.focus();
-        editor.fire("saveSnapshot");
-        editor.insertHtml(value);
-        editor.fire("saveSnapshot");
-      },
-    });
-  },
+        // Añadir el menú al editor
+        editor.ui.addRichCombo("placeholder_select", {
+            label: editor.lang.placeholder_select.dropdown_label,
+            title: editor.lang.placeholder_select.dropdown_title,
+            voiceLabel: editor.lang.placeholder_select.dropdown_voiceLabel,
+            className: "cke_format",
+            multiSelect: false,
+            panel: {
+                css: [CKEDITOR.skin.getPath("editor")].concat(editor.config.contentsCss),
+                voiceLabel: editor.lang.placeholder_select.panelVoiceLabel,
+            },
+
+            init: function () {
+                for (var group in placeholders) {
+                    // Crea el grupo en el richCombo
+                    this.startGroup(group);
+
+                    // Añade hijos al grupo
+                    var items = placeholders[group];
+                    for (var i = 0; i < items.length; i++) {
+                        this.add(items[i][0], items[i][1], items[i][2]);
+                    }
+                }
+            },
+
+            afterInit: function( editor ) {
+                var placeholderReplaceRegex = /\{\{([^\[\]])+\}\}/g;
+
+                editor.dataProcessor.dataFilter.addRules( {
+                    text: function( text, node ) {
+                        var dtd = node.parent && CKEDITOR.dtd[ node.parent.name ];
+
+                        // Skip the case when placeholder is in elements like <title> or <textarea>
+                        // but upcast placeholder in custom elements (no DTD).
+                        if ( dtd && !dtd.span )
+                            return;
+
+                        return text.replace( placeholderReplaceRegex, function( match ) {
+                            // Creating widget code.
+                            var widgetWrapper = null,
+                                innerElement = new CKEDITOR.htmlParser.element( 'span', {
+                                    'class': 'cke_placeholder'
+                                } );
+
+                            // Adds placeholder identifier as innertext.
+                            innerElement.add( new CKEDITOR.htmlParser.text( match ) );
+                            widgetWrapper = editor.widgets.wrapElement( innerElement, 'placeholder' );
+
+                            // Return outerhtml of widget wrapper so it will be placed
+                            // as replacement.
+                            return widgetWrapper.getOuterHtml();
+                        } );
+                    }
+                } );
+            },
+
+            onClick: function (value) {
+                // Insertar el placeholder con un span con un estilo CSS que lo haga no editable
+                // var placeholderHtml = '<span class="cke_placeholder" contenteditable="false">' + value + '</span>';
+
+                editor.focus();
+                editor.fire("saveSnapshot");
+
+                const sel = editor.getSelection();
+                const range = sel && sel.getRanges()[0];
+
+                if (range) {
+                    const anchor = range.startContainer && range.startContainer.getAscendant('a', true);
+                    if (anchor) {
+                        // Insertando dentro de un link
+                        const textNode = editor.document.createText(value);
+                        range.insertNode(textNode);
+                        range.selectNodeContents(textNode);
+                        sel.selectRanges([range]);
+                    } else {
+                        // Insertando en otros sitios
+                        editor.insertHtml(value);
+                    }
+                }
+
+                editor.fire("saveSnapshot");
+            }
+        });
+    },
 });
