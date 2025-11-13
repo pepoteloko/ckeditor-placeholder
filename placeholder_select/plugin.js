@@ -102,28 +102,50 @@ CKEDITOR.plugins.add("placeholder_select", {
                 } );
             },
 
-            onClick: function (value) {
-                // Insertar el placeholder con un span con un estilo CSS que lo haga no editable
-                // var placeholderHtml = '<span class="cke_placeholder" contenteditable="false">' + value + '</span>';
-
+            onClick: function(value) {
                 editor.focus();
                 editor.fire("saveSnapshot");
 
                 const sel = editor.getSelection();
                 const range = sel && sel.getRanges()[0];
+                if (!range) return;
 
-                if (range) {
-                    const anchor = range.startContainer && range.startContainer.getAscendant('a', true);
-                    if (anchor) {
-                        // Insertando dentro de un link
-                        const textNode = editor.document.createText(value);
-                        range.insertNode(textNode);
-                        range.selectNodeContents(textNode);
-                        sel.selectRanges([range]);
-                    } else {
-                        // Insertando en otros sitios
-                        editor.insertHtml(value);
-                    }
+                // Esborrem text seleccionat si n'hi ha
+                const selectedText = sel.getSelectedText();
+                if (selectedText) {
+                    range.deleteContents();
+                }
+
+                // Detectem si és HTML o un wildcard simple
+                const isHTML = /<[^>]+>/.test(value);
+
+                if (isHTML) {
+                    // Inserim HTML tal qual, editable
+                    editor.insertHtml(value);
+                } else {
+                    // Inserim un span no editable
+                    const span = new CKEDITOR.dom.element('span', editor.document);
+                    span.setAttribute('contenteditable', 'false');
+                    span.setAttribute('data-placeholder', value);
+
+                    // Estils inline verds
+                    span.setAttribute('style', `
+                        display:inline-block;
+                        background:#eaf5d1;
+                        border:1px solid #95c11f;
+                        color:#4a6b0b;
+                        font-size:0.9em;
+                        border-radius:3px;
+                        padding:0 2px;
+                        margin:0 1px;
+                        cursor:default;
+                    `.replace(/\s+/g,' '));
+
+                    span.setText(value);
+
+                    range.insertNode(span);
+                    range.selectNodeContents(span);
+                    sel.selectRanges([range]);
                 }
 
                 editor.fire("saveSnapshot");
