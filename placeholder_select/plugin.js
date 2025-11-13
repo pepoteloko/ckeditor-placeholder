@@ -12,14 +12,14 @@
  */
 CKEDITOR.plugins.add("placeholder_select", {
     lang: ["en", "de", "el", "ca", "es"],
-    requires: ["richcombo"],
+    requires: ["richcombo", "widget"],
     init: function (editor) {
         //  array of placeholders to choose from that'll be inserted into the editor
         var placeholders = {};
 
         // init the default config - empty placeholders
         var defaultConfig = {
-            format: "[[%placeholder%]]", // format placeholder a inserir
+            format: "[[%placeholder%]]",
             placeholders: [],
         };
 
@@ -46,7 +46,28 @@ CKEDITOR.plugins.add("placeholder_select", {
             placeholders[placeholder.group].push([formattedPlaceholder, placeholder.name, placeholder.value]);
         }
 
-        // Añadir el menú al editor
+        // Registramos widget
+        editor.widgets.add('placeholder', {
+            allowedContent: 'span[data-placeholder]',
+            requiredContent: 'span[data-placeholder]',
+            upcast: function(el) {
+                return el.name === 'span' && el.attributes['data-placeholder'];
+            },
+            init: function() {
+                this.element.setAttribute('contenteditable', 'false');
+                this.element.setStyle('display', 'inline-block');
+                this.element.setStyle('background', '#eaf5d1');
+                this.element.setStyle('border', '1px solid #95c11f');
+                this.element.setStyle('color', '#4a6b0b');
+                this.element.setStyle('font-size', '0.9em');
+                this.element.setStyle('border-radius', '3px');
+                this.element.setStyle('padding', '0 4px');
+                this.element.setStyle('margin', '0 2px');
+                this.element.setStyle('cursor', 'default');
+            }
+        });
+
+        // RichCombo dropdown
         editor.ui.addRichCombo("placeholder_select", {
             label: editor.lang.placeholder_select.dropdown_label,
             title: editor.lang.placeholder_select.dropdown_title,
@@ -55,53 +76,18 @@ CKEDITOR.plugins.add("placeholder_select", {
             multiSelect: false,
             panel: {
                 css: [CKEDITOR.skin.getPath("editor")].concat(editor.config.contentsCss),
-                voiceLabel: editor.lang.placeholder_select.panelVoiceLabel,
+                voiceLabel: editor.lang.placeholder_select.panelVoiceLabel
             },
 
             init: function () {
                 for (var group in placeholders) {
-                    // Crea el grupo en el richCombo
                     this.startGroup(group);
-
-                    // Añade hijos al grupo
                     var items = placeholders[group];
-                    for (var i = 0; i < items.length; i++) {
-                        this.add(items[i][0], items[i][1], items[i][2]);
-                    }
+                    for (var i = 0; i < items.length; i++) this.add(items[i][0], items[i][1], items[i][2]);
                 }
             },
 
-            afterInit: function( editor ) {
-                var placeholderReplaceRegex = /\{\{([^\[\]])+\}\}/g;
-
-                editor.dataProcessor.dataFilter.addRules( {
-                    text: function( text, node ) {
-                        var dtd = node.parent && CKEDITOR.dtd[ node.parent.name ];
-
-                        // Skip the case when the placeholder is in elements like <title> or <textarea>
-                        // but upcast the placeholder in custom elements (no DTD).
-                        if ( dtd && !dtd.span )
-                            return;
-
-                        return text.replace( placeholderReplaceRegex, function( match ) {
-                            // Creating widget code.
-                            var widgetWrapper = null,
-                                innerElement = new CKEDITOR.htmlParser.element( 'span', {
-                                    'class': 'cke_placeholder'
-                                } );
-
-                            // Adds placeholder identifier as innertext.
-                            innerElement.add( new CKEDITOR.htmlParser.text( match ) );
-                            widgetWrapper = editor.widgets.wrapElement( innerElement, 'placeholder' );
-
-                            // Return outerhtml of the widget wrapper so it will be placed as a replacement.
-                            return widgetWrapper.getOuterHtml();
-                        } );
-                    }
-                } );
-            },
-
-            onClick: function(value) {
+            onClick: function (value) {
                 editor.focus();
                 editor.fire("saveSnapshot");
 
@@ -109,40 +95,25 @@ CKEDITOR.plugins.add("placeholder_select", {
                 const range = sel && sel.getRanges()[0];
                 if (!range) return;
 
-                // Esborrem text seleccionat si n'hi ha
                 const selectedText = sel.getSelectedText();
-                if (selectedText) {
-                    range.deleteContents();
-                }
+                if (selectedText) range.deleteContents();
 
-                // Detectem si és HTML o un wildcard simple
+                const anchor = range.startContainer && range.startContainer.getAscendant('a', true);
                 const isHTML = /<[^>]+>/.test(value);
 
-                if (isHTML) {
-                    // Inserim HTML tal qual, editable
+                if (anchor) {
+                    const textNode = editor.document.createText(value);
+                    range.insertNode(textNode);
+                    range.selectNodeContents(textNode);
+                    sel.selectRanges([range]);
+                } else if (isHTML) {
                     editor.insertHtml(value);
                 } else {
-                    // Inserim un span no editable
                     const span = new CKEDITOR.dom.element('span', editor.document);
-                    span.setAttribute('contenteditable', 'false');
                     span.setAttribute('data-placeholder', value);
-
-                    // Estils inline verds
-                    span.setAttribute('style', `
-                        display:inline-block;
-                        background:#eaf5d1;
-                        border:1px solid #95c11f;
-                        color:#4a6b0b;
-                        font-size:0.9em;
-                        border-radius:3px;
-                        padding:0 2px;
-                        margin:0 1px;
-                        cursor:default;
-                    `.replace(/\s+/g,' '));
-
                     span.setText(value);
-
                     range.insertNode(span);
+                    editor.widgets.initOn(span, 'placeholder');
                     range.selectNodeContents(span);
                     sel.selectRanges([range]);
                 }
@@ -150,5 +121,10 @@ CKEDITOR.plugins.add("placeholder_select", {
                 editor.fire("saveSnapshot");
             }
         });
-    },
+
+        // Inicializamos widgets sobre el contenido existente cuando carga el editor
+        editor.on('instanceReady', function() {
+            editor.widgets.initOn(editor.document.getBody().getElementsByTag('span'), 'placeholder');
+        });
+    }
 });
